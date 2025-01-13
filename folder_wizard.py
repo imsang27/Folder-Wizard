@@ -1,17 +1,152 @@
 import os
 import shutil
-from typing import List, Tuple
+import json
+import datetime
+import uuid
+from typing import List, Dict, Any
+
+class OperationLogger:
+    def __init__(self):
+        self.log_dir = "operation_logs"
+        self.ensure_log_directory()
+        
+    def ensure_log_directory(self):
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+            
+    def create_operation_log(self) -> str:
+        """새로운 작업 로그 생성"""
+        operation_id = str(uuid.uuid4())
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = f"{timestamp}_{operation_id}.json"
+        
+        log_data = {
+            "operation_id": operation_id,
+            "timestamp": timestamp,
+            "moves": [],
+            "status": "started"
+        }
+        
+        self.save_log(log_file, log_data)
+        return operation_id
+        
+    def log_file_move(self, operation_id: str, source: str, destination: str):
+        """파일 이동 기록"""
+        log_file = self.get_log_file(operation_id)
+        if log_file:
+            with open(os.path.join(self.log_dir, log_file), 'r+') as f:
+                log_data = json.load(f)
+                log_data["moves"].append({
+                    "source": source,
+                    "destination": destination,
+                    "timestamp": datetime.datetime.now().isoformat()
+                })
+                f.seek(0)
+                json.dump(log_data, f, indent=2)
+                f.truncate()
+
+    def complete_operation(self, operation_id: str):
+        """작업 완료 표시"""
+        log_file = self.get_log_file(operation_id)
+        if log_file:
+            with open(os.path.join(self.log_dir, log_file), 'r+') as f:
+                log_data = json.load(f)
+                log_data["status"] = "completed"
+                f.seek(0)
+                json.dump(log_data, f, indent=2)
+                f.truncate()
+
+    def get_log_file(self, operation_id: str) -> str:
+        """작업 ID로 로그 파일 찾기"""
+        for file in os.listdir(self.log_dir):
+            if operation_id in file:
+                return file
+        return None
+
+    def save_log(self, filename: str, data: Dict[str, Any]):
+        """로그 데이터 저장"""
+        with open(os.path.join(self.log_dir, filename), 'w') as f:
+            json.dump(data, f, indent=2)
 
 class FolderWizard:
     def __init__(self):
-        self.current_path = ""
+        self.logger = OperationLogger()
+        self.current_operation_id = None
+
+    def rollback_operation(self, operation_id: str) -> bool:
+        """작업 롤백"""
+        try:
+            log_file = self.logger.get_log_file(operation_id)
+            if not log_file:
+                print(f"작업 ID {operation_id}를 찾을 수 없습니다.")
+                return False
+
+            with open(os.path.join(self.logger.log_dir, log_file), 'r') as f:
+                log_data = json.load(f)
+
+            if log_data["status"] != "completed":
+                print("완료되지 않은 작업은 롤백할 수 없습니다.")
+                return False
+
+            # 역순으로 파일 이동 실행
+            for move in reversed(log_data["moves"]):
+                source = move["destination"]
+                destination = move["source"]
+                
+                if os.path.exists(source):
+                    os.makedirs(os.path.dirname(destination), exist_ok=True)
+                    shutil.move(source, destination)
+                    print(f"롤백: {source} -> {destination}")
+
+            print(f"작업 {operation_id} 롤백 완료")
+            return True
+
+        except Exception as e:
+            print(f"롤백 중 오류 발생: {e}")
+            return False
+
+    def process_down_movement(self, path: str, delimiters: List[str], chars_to_remove: List[str]) -> None:
+        self.current_operation_id = self.logger.create_operation_log()
         
+        try:
+            for root, _, files in os.walk(path):
+                for file in files:
+                    current_path = os.path.join(root, file)
+                    processed_name = self.remove_chars(file, chars_to_remove)
+                    
+                    parts = [processed_name]
+                    for delimiter in delimiters:
+                        new_parts = []
+                        for part in parts:
+                            new_parts.extend(part.split(delimiter))
+                        parts = new_parts
+                    
+                    new_path = root
+                    for part in parts[:-1]:
+                        new_path = os.path.join(new_path, part)
+                        os.makedirs(new_path, exist_ok=True)
+                    
+                    target_path = os.path.join(new_path, parts[-1])
+                    if current_path != target_path:
+                        shutil.move(current_path, target_path)
+                        self.logger.log_file_move(self.current_operation_id, current_path, target_path)
+                        print(f"이동됨: {current_path} -> {target_path}")
+
+            self.logger.complete_operation(self.current_operation_id)
+            print(f"작업 ID: {self.current_operation_id}")
+            
+        except Exception as e:
+            print(f"오류 발생: {e}")
+            self.rollback_operation(self.current_operation_id)
+            raise
+
     def main_menu(self) -> None:
         while True:
             print("\n=== 폴더 마법사 ===")
             print("1. 폴더 구조 상향 이동")
             print("2. 폴더 구조 하향 이동")
-            print("3. 종료")
+            print("3. 작업 롤백")
+            print("4. 종료")
             
             choice = input("\n선택하세요: ")
             
@@ -20,6 +155,9 @@ class FolderWizard:
             elif choice == "2":
                 self.move_down_structure()
             elif choice == "3":
+                operation_id = input("롤백할 작업 ID를 입력하세요: ")
+                self.rollback_operation(operation_id)
+            elif choice == "4":
                 print("프로그램을 종료합니다.")
                 break
             else:
@@ -72,28 +210,6 @@ class FolderWizard:
 
         if delete_empty:
             self.remove_empty_folders(path)
-
-    def process_down_movement(self, path: str, delimiters: List[str], chars_to_remove: List[str]) -> None:
-        for root, _, files in os.walk(path):
-            for file in files:
-                current_path = os.path.join(root, file)
-                processed_name = self.remove_chars(file, chars_to_remove)
-                
-                parts = [processed_name]
-                for delimiter in delimiters:
-                    new_parts = []
-                    for part in parts:
-                        new_parts.extend(part.split(delimiter))
-                    parts = new_parts
-                
-                new_path = root
-                for part in parts[:-1]:
-                    new_path = os.path.join(new_path, part)
-                    os.makedirs(new_path, exist_ok=True)
-                
-                target_path = os.path.join(new_path, parts[-1])
-                if current_path != target_path:
-                    shutil.move(current_path, target_path)
 
     @staticmethod
     def remove_chars(filename: str, chars_to_remove: List[str]) -> str:
