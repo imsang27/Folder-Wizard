@@ -112,7 +112,10 @@ class FolderWizard:
             for root, _, files in os.walk(path):
                 for file in files:
                     current_path = os.path.join(root, file)
-                    processed_name = self.remove_chars(file, chars_to_remove)
+                    filename = os.path.splitext(file)[0]
+                    extension = os.path.splitext(file)[1]
+                    
+                    processed_name = self.remove_chars(filename, chars_to_remove)
                     
                     parts = [processed_name]
                     for delimiter in delimiters:
@@ -126,7 +129,8 @@ class FolderWizard:
                         new_path = os.path.join(new_path, part)
                         os.makedirs(new_path, exist_ok=True)
                     
-                    target_path = os.path.join(new_path, parts[-1])
+                    new_filename = parts[-1] + extension
+                    target_path = os.path.join(new_path, new_filename)
                     if current_path != target_path:
                         shutil.move(current_path, target_path)
                         self.logger.log_file_move(self.current_operation_id, current_path, target_path)
@@ -160,8 +164,6 @@ class FolderWizard:
             elif choice == "4":
                 print("프로그램을 종료합니다.")
                 break
-            else:
-                print("잘못된 선택입니다. 다시 선택해주세요.")
 
     def get_path_input(self) -> str:
         path = input("대상 경로를 입력하세요: ").strip()
@@ -199,14 +201,24 @@ class FolderWizard:
         for root, dirs, files in os.walk(path, topdown=False):
             for file in files:
                 current_path = os.path.join(root, file)
-                target_path = os.path.join(os.path.dirname(root), file)
+                filename = os.path.splitext(file)[0]
+                extension = os.path.splitext(file)[1]
                 
-                # 지정된 레벨만큼 상위로 이동
-                for _ in range(levels - 1):
-                    target_path = os.path.join(os.path.dirname(os.path.dirname(target_path)), file)
+                target_dir = root
+                for _ in range(levels):
+                    target_dir = os.path.dirname(target_dir)
                 
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                target_path = os.path.join(target_dir, filename + extension)
+                
+                # 중복 파일명 처리
+                counter = 1
+                while os.path.exists(target_path):
+                    base_name = filename + f"_{counter}"
+                    target_path = os.path.join(target_dir, base_name + extension)
+                    counter += 1
+                
                 shutil.move(current_path, target_path)
+                print(f"이동됨: {current_path} -> {target_path}")
 
         if delete_empty:
             self.remove_empty_folders(path)
@@ -231,4 +243,4 @@ class FolderWizard:
 
 if __name__ == "__main__":
     wizard = FolderWizard()
-    wizard.main_menu() 
+    wizard.main_menu()
