@@ -18,14 +18,27 @@ class OperationLogger:
         """새로운 작업 로그 생성"""
         operation_id = str(uuid.uuid4())
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = f"{timestamp}_{operation_id}.json"
+        log_file = f"operations.json"
         
-        log_data = {
-            "operation_id": operation_id,
+        if os.path.exists(os.path.join(self.log_dir, log_file)):
+            with open(os.path.join(self.log_dir, log_file), 'r') as f:
+                try:
+                    log_data = json.load(f)
+                except json.JSONDecodeError:
+                    log_data = {"operations": {}, "timestamps": {}}
+        else:
+            log_data = {"operations": {}, "timestamps": {}}
+
+        # operations와 timestamps 모두에 데이터 저장
+        operation_data = {
+            "id": operation_id,
             "timestamp": timestamp,
             "moves": [],
             "status": "started"
         }
+        
+        log_data["operations"][operation_id] = operation_data
+        log_data["timestamps"][timestamp] = operation_id
         
         self.save_log(log_file, log_data)
         return operation_id
@@ -67,6 +80,32 @@ class OperationLogger:
         """로그 데이터 저장"""
         with open(os.path.join(self.log_dir, filename), 'w') as f:
             json.dump(data, f, indent=2)
+
+    def get_operation_by_id(self, operation_id: str) -> Dict:
+        """ID로 작업 검색"""
+        with open(os.path.join(self.log_dir, "operations.json"), 'r') as f:
+            log_data = json.load(f)
+            return log_data["operations"].get(operation_id)
+
+    def get_operation_by_timestamp(self, timestamp: str) -> Dict:
+        """타임스탬프로 작업 검색"""
+        with open(os.path.join(self.log_dir, "operations.json"), 'r') as f:
+            log_data = json.load(f)
+            operation_id = log_data["timestamps"].get(timestamp)
+            if operation_id:
+                return log_data["operations"].get(operation_id)
+            return None
+
+    def list_recent_operations(self, limit: int = 10) -> List[Dict]:
+        """최근 작업 목록 조회"""
+        with open(os.path.join(self.log_dir, "operations.json"), 'r') as f:
+            log_data = json.load(f)
+            timestamps = sorted(log_data["timestamps"].keys(), reverse=True)
+            recent = []
+            for ts in timestamps[:limit]:
+                operation_id = log_data["timestamps"][ts]
+                recent.append(log_data["operations"][operation_id])
+            return recent
 
 class FolderWizard:
     def __init__(self):
