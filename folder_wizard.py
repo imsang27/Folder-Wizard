@@ -188,8 +188,9 @@ class FolderWizard:
             print("\n=== 폴더 마법사 ===")
             print("1. 폴더 구조 상향 이동")
             print("2. 폴더 구조 하향 이동")
-            print("3. 작업 롤백")
-            print("4. 종료")
+            print("3. 작업 이력 보기")
+            print("4. 작업 롤백")
+            print("5. 종료")
             
             choice = input("\n선택하세요: ")
             
@@ -198,9 +199,10 @@ class FolderWizard:
             elif choice == "2":
                 self.move_down_structure()
             elif choice == "3":
-                operation_id = input("롤백할 작업 ID를 입력하세요: ")
-                self.rollback_operation(operation_id)
+                self.show_operation_history()
             elif choice == "4":
+                self.handle_rollback()
+            elif choice == "5":
                 print("프로그램을 종료합니다.")
                 break
 
@@ -279,6 +281,39 @@ class FolderWizard:
                         os.rmdir(dir_path)
                 except OSError:
                     continue
+
+    def show_operation_history(self):
+        """최근 작업 이력 표시"""
+        recent_ops = self.logger.list_recent_operations(10)  # 최근 10개 작업
+        if not recent_ops:
+            print("작업 이력이 없습니다.")
+            return
+
+        print("\n=== 최근 작업 이력 ===")
+        for op in recent_ops:
+            status_emoji = "✅" if op['status'] == "completed" else "🔄"
+            print(f"{status_emoji} [{op['timestamp']}] ID: {op['id']}")
+            print(f"   처리된 파일: {len(op['moves'])}개")
+            print("-" * 50)
+
+    def handle_rollback(self):
+        """롤백 처리"""
+        print("\n=== 롤백 실행 ===")
+        print("1. 작업 ID로 롤백")
+        print("2. 시간으로 롤백")
+        
+        choice = input("\n선택하세요: ")
+        
+        if choice == "1":
+            operation_id = input("롤백할 작업 ID를 입력하세요: ")
+            self.rollback_operation(operation_id)
+        elif choice == "2":
+            timestamp = input("롤백할 작업 시간을 입력하세요 (YYYYMMDD_HHMMSS 형식): ")
+            operation = self.logger.get_operation_by_timestamp(timestamp)
+            if operation:
+                self.rollback_operation(operation['id'])
+            else:
+                print("해당 시간의 작업을 찾을 수 없습니다.")
 
 if __name__ == "__main__":
     wizard = FolderWizard()
