@@ -44,7 +44,7 @@ class OperationLogger:
             
             with open(log_file, 'w') as f:
                 json.dump(log_data, f, indent=2)
-                
+        
     def get_operation_by_timestamp(self, timestamp: str) -> Optional[Dict]:
         """타임스탬프로 작업 검색"""
         for file in os.listdir(self.log_dir):
@@ -557,7 +557,7 @@ class FolderWizard:
         """파일명 충돌 처리"""
         if not os.path.exists(target_path):
             return target_path
-           
+        
         base, ext = os.path.splitext(target_path)
         counter = 1
         while os.path.exists(f"{base} ({counter}){ext}"):
@@ -668,13 +668,13 @@ class FolderWizard:
         print("   - 여러 구분자를 사용하여 복잡한 폴더 구조를 만들 수 있습니다.")
         print("   - 파일명에서 불필요한 문자를 제거할 수 있습니다.")
         print("\n   사용 예시:")
-        print("   1) 단일 구분자: '2024_01_회의록.txt' -> '2024/01/회의록.txt'")
-        print("   2) 다중 구분자: '2024-01_회의-기획.txt' -> '2024/01/회의/기획.txt'")
-        print("   3) 문자 제거: 'IMG_2024_01.jpg' -> '2024/01.jpg' (IMG_ 제거)")
+        print("       1) 단일 구분자: 2024_01_회의록.txt -> 2024/01/회의록.txt")
+        print("       2) 다중 구분자: 2024-01_회의-기획.txt -> 2024/01/회의/기획.txt")
+        print("       3) 문자 제거: IMG_2024_01.jpg -> 2024/01.jpg (IMG_ 제거)")
         
         print("\n3. 작업 관리")
         print("   - 작업 진행 상황을 실시간으로 확인할 수 있습니다.")
-        print("   - 작업 중 일시 정지 및 재개가 가능합니다. (Ctrl+C)")
+        print("   - 작업 중 일시 정지 및 재개가 가능합니다. (Ctrl + C)")
         print("   - 문제 발생 시 이전 상태로 롤백할 수 있습니다.")
         print("   - 작업 이력을 조회하고 관리할 수 있습니다.")
         print("   - 상세한 작업 통계를 확인할 수 있습니다.")
